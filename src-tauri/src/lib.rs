@@ -288,6 +288,49 @@ fn extract_steam_data(app_handle: tauri::AppHandle, label: String, start: i32) -
     Ok(())
 }
 
+#[tauri::command]
+async fn install_update(url: String) -> Result<(), String> {
+    // 1. Get system temp directory
+    let temp_dir = std::env::temp_dir();
+    let dest_path = temp_dir.join("TBH_Helper_Update_Setup.exe");
+    
+    // 2. Download the file using ureq
+    println!("Downloading update from {} to {:?}", url, dest_path);
+    let response = ureq::get(&url)
+        .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .call()
+        .map_err(|e| format!("Failed to download update: {}", e))?;
+        
+    let mut reader = response.into_reader();
+    let mut file = std::fs::File::create(&dest_path)
+        .map_err(|e| format!("Failed to create temp file: {}", e))?;
+        
+    std::io::copy(&mut reader, &mut file)
+        .map_err(|e| format!("Failed to save update file: {}", e))?;
+        
+    // 3. Execute the installer
+    println!("Launching installer: {:?}", dest_path);
+    
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new(&dest_path)
+            .spawn()
+            .map_err(|e| format!("Failed to start installer: {}", e))?;
+    }
+    
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("open")
+            .arg(&dest_path)
+            .spawn()
+            .map_err(|e| format!("Failed to start installer: {}", e))?;
+    }
+    
+    // 4. Exit our application so the installer can overwrite it
+    std::process::exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -303,7 +346,8 @@ pub fn run() {
             get_steam_cookies,
             navigate_steam_window,
             show_steam_window,
-            extract_steam_data
+            extract_steam_data,
+            install_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

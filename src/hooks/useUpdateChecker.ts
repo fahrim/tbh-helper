@@ -5,12 +5,18 @@ import { getVersion } from "@tauri-apps/api/app";
 const GITHUB_OWNER = "selimlendiniz";
 const GITHUB_REPO = "tbh-helper";
 
+interface Asset {
+  name: string;
+  browser_download_url: string;
+}
+
 interface Release {
   tag_name: string;
   html_url: string;
   name: string;
   body: string;
   published_at: string;
+  assets?: Asset[];
 }
 
 function parseVersion(v: string): number[] {
