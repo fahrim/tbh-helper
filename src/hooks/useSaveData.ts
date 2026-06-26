@@ -54,6 +54,60 @@ export function useSaveData() {
     try { localStorage.setItem("tbh_new_item_alert_threshold", String(clamped)); } catch {}
   };
 
+  const [telegramEnabled, setTelegramEnabledState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("tbh_telegram_enabled") === "true";
+    } catch { return false; }
+  });
+
+  const [telegramBotToken, setTelegramBotTokenState] = useState<string>(() => {
+    try {
+      return localStorage.getItem("tbh_telegram_bot_token") || "";
+    } catch { return ""; }
+  });
+
+  const [telegramChatId, setTelegramChatIdState] = useState<string>(() => {
+    try {
+      return localStorage.getItem("tbh_telegram_chat_id") || "";
+    } catch { return ""; }
+  });
+
+  const setTelegramEnabled = (val: boolean) => {
+    setTelegramEnabledState(val);
+    try { localStorage.setItem("tbh_telegram_enabled", String(val)); } catch {}
+  };
+
+  const setTelegramBotToken = (val: string) => {
+    setTelegramBotTokenState(val);
+    try { localStorage.setItem("tbh_telegram_bot_token", val); } catch {}
+  };
+
+  const setTelegramChatId = (val: string) => {
+    setTelegramChatIdState(val);
+    try { localStorage.setItem("tbh_telegram_chat_id", val); } catch {}
+  };
+
+  const sendTelegramMessage = async (message: string) => {
+    if (!telegramBotToken || !telegramChatId) return;
+    try {
+      const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: telegramChatId,
+          text: message,
+          parse_mode: "HTML"
+        })
+      });
+      if (!res.ok) {
+        console.error("Telegram API returned error status:", res.status);
+      }
+    } catch (err) {
+      console.error("Failed to send Telegram message:", err);
+    }
+  };
+
   const [portfolioHistory, setPortfolioHistory] = useState<PortfolioPoint[]>(() => {
     try {
       const saved = localStorage.getItem("tbh_portfolio_history");
@@ -416,6 +470,13 @@ export function useSaveData() {
           }
         ]);
 
+        // 3. Telegram notification
+        if (telegramEnabled) {
+          sendTelegramMessage(
+            `🔔 <b>TBH Price Alert</b>\n\n<b>${item.name}</b> is now <b>$${currentPrice.toFixed(2)}</b> (alert set for ${item.alertType === "below" ? "≤" : "≥"} $${item.targetPrice.toFixed(2)})!`
+          );
+        }
+
         wishlistChanged = true;
         return {
           ...item,
@@ -507,6 +568,13 @@ export function useSaveData() {
                 timestamp: Date.now()
               }
             ]);
+
+            // 3. Telegram notification
+            if (telegramEnabled) {
+              sendTelegramMessage(
+                `⭐ <b>High-Value Item Added!</b>\n\n<b>${addedQty}x ${item.name}</b> (${item.grade}) worth <b>$${individualPrice.toFixed(2)}</b> each has been added to your inventory/stash.`
+              );
+            }
           }
         }
       }
@@ -1059,6 +1127,9 @@ export function useSaveData() {
     steamRateLimited,
     steamLoggedIn,
     newItemAlertThreshold,
+    telegramEnabled,
+    telegramBotToken,
+    telegramChatId,
     
     // Data
     parsedSave,
@@ -1084,5 +1155,9 @@ export function useSaveData() {
     removeFromWishlist,
     dismissNotification,
     setNewItemAlertThreshold,
+    setTelegramEnabled,
+    setTelegramBotToken,
+    setTelegramChatId,
+    sendTelegramMessage,
   };
 }

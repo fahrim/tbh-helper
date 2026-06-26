@@ -99,6 +99,13 @@ export default function App() {
     dismissNotification,
     newItemAlertThreshold,
     setNewItemAlertThreshold,
+    telegramEnabled,
+    telegramBotToken,
+    telegramChatId,
+    setTelegramEnabled,
+    setTelegramBotToken,
+    setTelegramChatId,
+    sendTelegramMessage,
   } = useSaveData();
 
   const {
@@ -247,6 +254,13 @@ export default function App() {
         newItemAlertThreshold={newItemAlertThreshold}
         onSetNewItemAlertThreshold={setNewItemAlertThreshold}
         updateAvailable={updateAvailable}
+        telegramEnabled={telegramEnabled}
+        telegramBotToken={telegramBotToken}
+        telegramChatId={telegramChatId}
+        onSetTelegramEnabled={setTelegramEnabled}
+        onSetTelegramBotToken={setTelegramBotToken}
+        onSetTelegramChatId={setTelegramChatId}
+        onSendTelegramTest={sendTelegramMessage}
       />
     </div>
   );

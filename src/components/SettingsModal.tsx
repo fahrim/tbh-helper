@@ -15,6 +15,13 @@ interface SettingsModalProps {
   newItemAlertThreshold: number;
   onSetNewItemAlertThreshold: (val: number) => void;
   updateAvailable: any;
+  telegramEnabled: boolean;
+  telegramBotToken: string;
+  telegramChatId: string;
+  onSetTelegramEnabled: (val: boolean) => void;
+  onSetTelegramBotToken: (val: string) => void;
+  onSetTelegramChatId: (val: string) => void;
+  onSendTelegramTest: (msg: string) => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -31,6 +38,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   newItemAlertThreshold,
   onSetNewItemAlertThreshold,
   updateAvailable,
+  telegramEnabled,
+  telegramBotToken,
+  telegramChatId,
+  onSetTelegramEnabled,
+  onSetTelegramBotToken,
+  onSetTelegramChatId,
+  onSendTelegramTest,
 }) => {
   const [appVersion, setAppVersion] = useState<string>("...");
   const [downloading, setDownloading] = useState(false);
@@ -195,6 +209,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </div>
               </div>
+            </section>
+
+            <div className="settings-divider" />
+
+            {/* Telegram Notifications */}
+            <section className="settings-section">
+              <h3 className="settings-section-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>📬 Telegram Notifications</span>
+              </h3>
+              <p className="settings-section-desc">
+                Receive instant price alerts and new high-value item notifications directly on your mobile Telegram app (100% free!).
+              </p>
+              
+              <div className="settings-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div className="settings-row-label">
+                  <span className="settings-row-name">Enable Telegram Alerts</span>
+                  <span className="settings-row-hint">Forward alerts to your Telegram bot</span>
+                </div>
+                <div className="settings-row-actions">
+                  <input 
+                    type="checkbox" 
+                    checked={telegramEnabled} 
+                    onChange={(e) => onSetTelegramEnabled(e.target.checked)} 
+                    style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#10b981" }}
+                  />
+                </div>
+              </div>
+
+              {telegramEnabled && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px", background: "rgba(0,0,0,0.15)", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontSize: "10px", color: "var(--text-dark)", fontWeight: "bold" }}>BOT TOKEN</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 123456789:ABCdef..." 
+                      value={telegramBotToken} 
+                      onChange={(e) => onSetTelegramBotToken(e.target.value.trim())} 
+                      style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--border-color)", color: "var(--text-main)", padding: "6px 8px", borderRadius: "6px", fontSize: "12px", width: "100%" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontSize: "10px", color: "var(--text-dark)", fontWeight: "bold" }}>CHAT ID</span>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 987654321" 
+                      value={telegramChatId} 
+                      onChange={(e) => onSetTelegramChatId(e.target.value.trim())} 
+                      style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--border-color)", color: "var(--text-main)", padding: "6px 8px", borderRadius: "6px", fontSize: "12px", width: "100%" }}
+                    />
+                  </div>
+                  <button 
+                    onClick={() => onSendTelegramTest("⚡ <b>TBH Helper Connection Test</b>\n\nTelegram notifications are now active and configured successfully!")}
+                    disabled={!telegramBotToken || !telegramChatId}
+                    style={{ 
+                      background: (!telegramBotToken || !telegramChatId) ? "rgba(255,255,255,0.02)" : "rgba(16, 185, 129, 0.1)", 
+                      border: (!telegramBotToken || !telegramChatId) ? "1px solid var(--border-color)" : "1px solid rgba(16, 185, 129, 0.3)", 
+                      color: (!telegramBotToken || !telegramChatId) ? "var(--text-muted)" : "#10b981", 
+                      padding: "8px", 
+                      borderRadius: "6px", 
+                      fontSize: "12px", 
+                      fontWeight: "600", 
+                      cursor: (!telegramBotToken || !telegramChatId) ? "not-allowed" : "pointer", 
+                      transition: "all 0.15s ease", 
+                      marginTop: "4px" 
+                    }}
+                  >
+                    Test Connection
+                  </button>
+                  <span style={{ fontSize: "9px", color: "var(--text-dark)", lineHeight: "1.3" }}>
+                    ℹ️ <strong>Setup:</strong> 1. Message <code>@BotFather</code> on Telegram, send <code>/newbot</code> to get a Bot Token. 2. Message <code>@GetIDBot</code> to get your Chat ID. 3. Search for your bot and click <strong>Start</strong>, then click Test Connection above.
+                  </span>
+                </div>
+              )}
             </section>
 
           </div>
