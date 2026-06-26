@@ -24,7 +24,66 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="dashboard-header fade-in">
       <div className="brand-section" style={{ display: "flex", alignItems: "center", gap: "20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div className="brand-logo-glow" />
+          <svg 
+            width="28" 
+            height="28" 
+            viewBox="0 0 32 32" 
+            fill="none" 
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ 
+              filter: "drop-shadow(0px 0px 8px rgba(255, 128, 0, 0.5))",
+              animation: "pulse 2s infinite alternate",
+            }}
+          >
+            <defs>
+              <linearGradient id="shield-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#ff8000" />
+                <stop offset="100%" stopColor="#a335ee" />
+              </linearGradient>
+              <linearGradient id="chart-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#ffb830" />
+                <stop offset="100%" stopColor="#ff8000" />
+              </linearGradient>
+            </defs>
+            
+            <path 
+              d="M16 3C19.5 3 24 4.5 26 5.5C26 13.5 23.5 21.5 16 28C8.5 21.5 6 13.5 6 5.5C8 4.5 12.5 3 16 3Z" 
+              stroke="url(#shield-grad)" 
+              strokeWidth="2.5" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              fill="rgba(17, 19, 26, 0.6)"
+            />
+            
+            <path 
+              d="M16 8V21" 
+              stroke="#ffffff" 
+              strokeWidth="2" 
+              strokeLinecap="round"
+            />
+            <path 
+              d="M13 18H19" 
+              stroke="#ffffff" 
+              strokeWidth="1.5" 
+              strokeLinecap="round"
+            />
+            <path 
+              d="M16 21V23" 
+              stroke="#ffffff" 
+              strokeWidth="2" 
+              strokeLinecap="round"
+            />
+            
+            <path 
+              d="M9 19L13 15L18 17L23 11" 
+              stroke="url(#chart-grad)" 
+              strokeWidth="2.5" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+            />
+            
+            <circle cx="23" cy="11" r="2" fill="#ffb830" />
+          </svg>
           <h1 className="brand-title">TBH Helper</h1>
         </div>
         {totalStashValue !== undefined && (
