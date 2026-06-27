@@ -4,6 +4,18 @@
 
 ---
 
+## 📷 Ekran Görüntüleri
+
+| Ana Panel | Eşya Detayları & Geçmişi |
+|---|---|
+| ![Ana Panel](./screenshots/main_dashboard.png) | ![Eşya Detayları](./screenshots/item_detail.png) |
+
+| Analitik Paneli | İstek Listesi & Uyarılar |
+|---|---|
+| ![Analitik](./screenshots/analytics.png) | ![İstek Listesi](./screenshots/wishlist.png) |
+
+---
+
 ## ⬇️ İndirme & Kurulum
 
 **Herhangi bir kodlama veya kurulum bilgisi gerektirmez.** Sadece yükleyiciyi indirin ve çalıştırın.
@@ -27,6 +39,7 @@
 - 🔴 **Gerçek Zamanlı Senkronizasyon** — Oyunu oynarken save dosyanızı otomatik izler ve arayüzü anlık günceller.
 - 🔐 **Steam Hesap Entegrasyonu** — Hız sınırı (429 Too Many Requests) sorunlarını aşmak için uygulama içinden güvenle Steam girişi yapın.
 - 📬 **Telegram Bildirimleri** — Değerli eşya düşürdüğünüzde veya fiyat değişimlerinde anlık mobil bildirimleri doğrudan Telegram uygulamanızdan alın.
+- 🔔 **Yüksek Değerli Eşya Uyarıları** — Belirlediğiniz fiyat eşiğinin üzerinde nadir veya değerli eşyalar düştüğünde masaüstü bildirimleri alın.
 - ⚙️ **Arka Planda Çalışma (Sistem Tepsisi / Tray)** — Pencereyi kapatsanız bile uygulamanın arka planda çalışmaya devam etmesini ve bildirim göndermesini sağlayın.
 
 ---

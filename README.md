@@ -6,6 +6,18 @@
 
 ---
 
+## 📷 Screenshots
+
+| Main Dashboard | Item Details & History |
+|---|---|
+| ![Main Dashboard](./screenshots/main_dashboard.png) | ![Item Details](./screenshots/item_detail.png) |
+
+| Analytics Panel | Wishlist & Alerts |
+|---|---|
+| ![Analytics](./screenshots/analytics.png) | ![Wishlist](./screenshots/wishlist.png) |
+
+---
+
 ## ⬇️ Download & Install
 
 **No setup or coding required.** Just download the installer and run it.
@@ -29,6 +41,7 @@
 - 🔴 **Real-Time Sync** — Watches your save file automatically and updates the view live as you play.
 - 🔐 **Steam Account Integration** — Log in to Steam securely inside the app to bypass rate limits (429 errors).
 - 📬 **Telegram Alerts** — Get instant price alerts and new high-value item notifications directly on your mobile Telegram app.
+- 🔔 **High-Value Item Alerts** — Get desktop notifications when you get rare drops exceeding your set price threshold.
 - ⚙️ **Close to Tray** — Keep the app running in the system tray in the background to continue watching prices and sending notifications.
 
 ---
