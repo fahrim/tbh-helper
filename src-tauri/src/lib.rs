@@ -355,7 +355,6 @@ async fn install_update(url: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         std::process::Command::new(&dest_path)
             .spawn()
             .map_err(|e| format!("Failed to start installer: {}", e))?;

@@ -1,6 +1,6 @@
 [package]
 name = "tbhhelper"
-version = "0.0.1"
+version = "0.1.0"
 description = "Task Bar Hero Helper App"
 authors = ["Antigravity"]
 edition = "2021"
