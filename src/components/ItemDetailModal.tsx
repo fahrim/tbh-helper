@@ -166,6 +166,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [activeFilter, setActiveFilter] = useState<"all" | "7d" | "3d" | "1d">("all");
 
   const chartRef = useRef<SVGSVGElement>(null);
+  const fetchStartedRef = useRef(false);
 
   const handleOpenInSteamApp = () => {
     const url = `steam://openurl/https://steamcommunity.com/market/listings/3678970/${encodeURIComponent(item.marketHashName)}`;
@@ -197,6 +198,9 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   };
 
   useEffect(() => {
+    if (fetchStartedRef.current) return;
+    fetchStartedRef.current = true;
+
     let active = true;
     setLoading(true);
     setError(null);
@@ -269,6 +273,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     }, 5000);
 
     return () => {
+      fetchStartedRef.current = false;
       active = false;
       clearInterval(interval);
     };
