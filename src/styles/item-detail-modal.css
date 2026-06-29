@@ -603,3 +603,165 @@
   color: var(--text-main);
 }
 
+/* Orderbook Section */
+.orderbook-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #060608;
+  border: 1px solid #201a14;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.orderbook-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.orderbook-summary-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.orderbook-summary-value {
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.orderbook-summary-value.buy {
+  color: #34d399;
+}
+
+.orderbook-summary-value.sell {
+  color: var(--accent-gold);
+}
+
+.orderbook-summary-value.spread {
+  color: #818cf8;
+}
+
+.orderbook-live-badge {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #34d399;
+  text-transform: uppercase;
+  cursor: help;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.orderbook-error-state,
+.orderbook-loading-state {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.orderbook-error-state {
+  color: #f87171;
+}
+
+/* Orderbook Grid (two columns) */
+.orderbook-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: #060608;
+  border: 1px solid #201a14;
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 180px;
+}
+
+.orderbook-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.orderbook-column-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 4px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #181410;
+}
+
+.orderbook-column-title.buy {
+  color: #34d399;
+}
+
+.orderbook-column-title.sell {
+  color: var(--accent-gold);
+}
+
+.orderbook-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.orderbook-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  transition: background 0.1s ease;
+}
+
+.orderbook-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.orderbook-price {
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.orderbook-price.buy {
+  color: #34d399;
+}
+
+.orderbook-price.sell {
+  color: var(--accent-gold);
+}
+
+.orderbook-count {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.orderbook-empty {
+  color: var(--text-dark);
+  font-size: 10px;
+  text-align: center;
+  padding: 12px 0;
+}
+

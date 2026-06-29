@@ -3,6 +3,7 @@ use flate2::read::GzDecoder;
 use hmac::Hmac;
 use pbkdf2::pbkdf2;
 use sha1::Sha1;
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -153,11 +154,17 @@ fn select_custom_save_file() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn fetch_url(url: String) -> Result<String, String> {
+fn fetch_url(url: String, headers: Option<HashMap<String, String>>) -> Result<String, String> {
     let mut request = ureq::get(&url).set(
         "User-Agent",
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     );
+
+    if let Some(hdrs) = headers {
+        for (key, value) in hdrs {
+            request = request.set(&key, &value);
+        }
+    }
 
     let mut using_cookies = false;
     if let Ok(guard) = STEAM_COOKIES.lock() {

@@ -4,10 +4,10 @@ import gearDetailsRaw from "../constants/gear_details.json";
 
 const gearDetails = gearDetailsRaw as any;
 
-export async function fetchUrlWithRetry(url: string, retries = 3, baseDelay = 2000): Promise<string> {
+export async function fetchUrlWithRetry(url: string, retries = 3, baseDelay = 2000, headers?: Record<string, string>): Promise<string> {
   for (let i = 0; i < retries; i++) {
     try {
-      return await invoke<string>("fetch_url", { url });
+      return await invoke<string>("fetch_url", { url, headers });
     } catch (err) {
       if (i === retries - 1) {
         throw err;

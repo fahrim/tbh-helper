@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
 import { isUnobtainableItem, getInherentOptions, getUniqueModKeyById, getItemBaseStats, translateInherentOption, formatDecimal, formatPrice } from "../utils";
-import { fetchMarketDetail, PricePoint, ActiveListing } from "../services/marketDataService";
+import { fetchMarketDetail, fetchOrderBook, summarizeOrderBook, PricePoint, ActiveListing, OrderBookSummary } from "../services/marketDataService";
 import { TbhItem, WishlistItem } from "../types";
 // @ts-ignore
 import materialEffectsRaw from "../constants/material_effects.json";
@@ -129,7 +129,9 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<PricePoint[]>([]);
-  const [listings, setListings] = useState<ActiveListing[]>([]);
+  const [orderBook, setOrderBook] = useState<OrderBookSummary | null>(null);
+  const [orderBookUpdatedAt, setOrderBookUpdatedAt] = useState<number | null>(null);
+  const [orderBookError, setOrderBookError] = useState<string | null>(null);
 
   const [targetPrice, setTargetPrice] = useState<number>(0);
   const [alertType, setAlertType] = useState<"below" | "above">("below");
@@ -193,14 +195,28 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setLoading(true);
     setError(null);
     setHistory([]);
-    setListings([]);
+    setOrderBook(null);
+    setOrderBookUpdatedAt(null);
+    setOrderBookError(null);
 
-    (async () => {
+    const fetchAll = async () => {
       try {
-        const result = await fetchMarketDetail(item.marketHashName);
+        const [detailResult] = await Promise.all([
+          fetchMarketDetail(item.marketHashName),
+          fetchOrderBook(item.marketHashName).then((data) => {
+            if (active) {
+              setOrderBook(summarizeOrderBook(data));
+              setOrderBookUpdatedAt(Date.now());
+            }
+          }).catch((err) => {
+            console.error("Failed to fetch orderbook:", err);
+            if (active) {
+              setOrderBookError("Orderbook unavailable");
+            }
+          }),
+        ]);
         if (active) {
-          setHistory(result.history);
-          setListings(result.listings);
+          setHistory(detailResult.history);
           setLoading(false);
         }
       } catch (err: any) {
@@ -210,10 +226,28 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           setLoading(false);
         }
       }
-    })();
+    };
+
+    fetchAll();
+
+    const interval = setInterval(() => {
+      fetchOrderBook(item.marketHashName).then((data) => {
+        if (active) {
+          setOrderBook(summarizeOrderBook(data));
+          setOrderBookUpdatedAt(Date.now());
+          setOrderBookError(null);
+        }
+      }).catch((err) => {
+        console.error("Orderbook poll failed:", err);
+        if (active) {
+          setOrderBookError("Orderbook poll failed");
+        }
+      });
+    }, 5000);
 
     return () => {
       active = false;
+      clearInterval(interval);
     };
   }, [item]);
 
@@ -802,35 +836,67 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             </div>
 
             <div>
-              <h3 className="section-title">{t("cheapestActiveListings")}</h3>
-            {loading ? (
-              <div className="modal-inner-loader">
-                <div className="loading-spinner" />
+              <div className="orderbook-summary">
+                {orderBook ? (
+                  <>
+                    <span className="orderbook-summary-item">
+                      <span className="orderbook-summary-label">{t("highestBuy")}</span>
+                      <span className="orderbook-summary-value buy">{formatPrice(orderBook.highestBuyPrice)}</span>
+                    </span>
+                    <span className="orderbook-summary-item">
+                      <span className="orderbook-summary-label">{t("lowestSell")}</span>
+                      <span className="orderbook-summary-value sell">{formatPrice(orderBook.lowestSellPrice)}</span>
+                    </span>
+                    <span className="orderbook-summary-item">
+                      <span className="orderbook-summary-label">{t("spread")}</span>
+                      <span className="orderbook-summary-value spread">{formatPrice(orderBook.lowestSellPrice - orderBook.highestBuyPrice)}</span>
+                    </span>
+                    <span className="orderbook-live-badge" title={orderBookUpdatedAt ? new Date(orderBookUpdatedAt).toLocaleTimeString() : ""}>
+                      <span className="live-dot" /> LIVE
+                    </span>
+                  </>
+                ) : orderBookError ? (
+                  <span className="orderbook-error-state">{t("orderbookUnavailable")}</span>
+                ) : (
+                  <span className="orderbook-loading-state">{t("loadingOrderbook")}</span>
+                )}
               </div>
-            ) : listings.length === 0 ? (
-              <div className="empty-listings-state">
-                <p>{t("noListingsFound")}</p>
+              <div className="orderbook-grid">
+                <div className="orderbook-column">
+                  <h4 className="orderbook-column-title buy">{t("buyOrders")}</h4>
+                  {orderBook ? (
+                    <div className="orderbook-entries">
+                      {orderBook.buyOrders.slice(0, 8).map((ord, idx) => (
+                        <div key={idx} className="orderbook-row">
+                          <span className="orderbook-price buy">{formatPrice(ord.price)}</span>
+                          <span className="orderbook-count">{ord.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : orderBookError ? (
+                    <div className="orderbook-empty">—</div>
+                  ) : (
+                    <div className="orderbook-empty">...</div>
+                  )}
+                </div>
+                <div className="orderbook-column">
+                  <h4 className="orderbook-column-title sell">{t("sellOrders")}</h4>
+                  {orderBook ? (
+                    <div className="orderbook-entries">
+                      {orderBook.sellOrders.slice(0, 8).map((ord, idx) => (
+                        <div key={idx} className="orderbook-row">
+                          <span className="orderbook-price sell">{formatPrice(ord.price)}</span>
+                          <span className="orderbook-count">{ord.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : orderBookError ? (
+                    <div className="orderbook-empty">—</div>
+                  ) : (
+                    <div className="orderbook-empty">...</div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div className="listings-table-wrapper">
-                <table className="listings-table">
-                  <thead>
-                    <tr>
-                      <th>{t("price")}</th>
-                      <th style={{ textAlign: "right" }}>{t("quantity")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {listings.slice(0, 8).map((lst, idx) => (
-                      <tr key={idx} className="listing-row">
-                        <td className="listing-price gold">{formatPrice(lst.price)}</td>
-                        <td className="listing-qty" style={{ textAlign: "right" }}>{lst.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </div>
 

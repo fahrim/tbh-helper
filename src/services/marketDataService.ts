@@ -15,10 +15,31 @@ export interface ActiveListing {
 
 export interface MarketDetail {
   history: PricePoint[];
-  listings: ActiveListing[];
+}
+
+export interface OrderBookData {
+  amtMaxBuyOrder: number;
+  amtMinSellOrder: number;
+  eCurrency: number;
+  cBuyOrders: number;
+  cSellOrders: number;
+  rgCompactBuyOrders: number[];
+  rgCompactSellOrders: number[];
+}
+
+export interface OrderBookSummary {
+  highestBuyPrice: number;
+  lowestSellPrice: number;
+  highestBuyAmount: number;
+  lowestSellAmount: number;
+  totalBuyOrders: number;
+  totalSellOrders: number;
+  buyOrders: ActiveListing[];
+  sellOrders: ActiveListing[];
 }
 
 const MARKET_LISTING_URL = "https://steamcommunity.com/market/listings/3678970";
+const ORDERBOOK_URL = "https://steamcommunity.com/market/orderbook";
 
 function parseHistoryFromSSR(html: string): PricePoint[] {
   const pricesMatch = html.match(/prices\\*":\s*(\[[\s\S]*?\])/);
@@ -72,27 +93,28 @@ function parseHistoryFromSSR(html: string): PricePoint[] {
   return [];
 }
 
-function parseListingsFromSSR(html: string): ActiveListing[] {
-  const match = html.match(/rgCompactSellOrders\\*":\s*(\[[\s\S]*?\])/);
-  if (!match) return [];
-
-  try {
-    const cleanJson = match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\/g, "");
-    const list = JSON.parse(cleanJson);
-    if (!Array.isArray(list)) return [];
-
-    const listings: ActiveListing[] = [];
-    for (let i = 0; i < list.length; i += 2) {
-      listings.push({
-        price: centsToDollars(list[i]),
-        count: list[i + 1],
-      });
-    }
-    return listings;
-  } catch (e) {
-    console.warn("Failed to parse sell orders JSON:", e);
-    return [];
+export function parseCompactOrders(compact: number[]): ActiveListing[] {
+  const orders: ActiveListing[] = [];
+  for (let i = 0; i < compact.length; i += 2) {
+    orders.push({
+      price: centsToDollars(compact[i]),
+      count: compact[i + 1],
+    });
   }
+  return orders;
+}
+
+export function summarizeOrderBook(data: OrderBookData): OrderBookSummary {
+  return {
+    highestBuyPrice: centsToDollars(data.amtMaxBuyOrder),
+    lowestSellPrice: centsToDollars(data.amtMinSellOrder),
+    highestBuyAmount: data.rgCompactBuyOrders.length > 1 ? data.rgCompactBuyOrders[1] : 0,
+    lowestSellAmount: data.rgCompactSellOrders.length > 1 ? data.rgCompactSellOrders[1] : 0,
+    totalBuyOrders: data.cBuyOrders,
+    totalSellOrders: data.cSellOrders,
+    buyOrders: parseCompactOrders(data.rgCompactBuyOrders),
+    sellOrders: parseCompactOrders(data.rgCompactSellOrders),
+  };
 }
 
 export async function fetchMarketDetail(marketHashName: string): Promise<MarketDetail> {
@@ -101,6 +123,18 @@ export async function fetchMarketDetail(marketHashName: string): Promise<MarketD
 
   return {
     history: parseHistoryFromSSR(html),
-    listings: parseListingsFromSSR(html),
   };
+}
+
+export async function fetchOrderBook(marketHashName: string): Promise<OrderBookData> {
+  const qp = JSON.stringify([3678970, marketHashName]);
+  const url = `${ORDERBOOK_URL}?q=Load&qp=${encodeURIComponent(qp)}`;
+  const text = await fetchUrlWithRetry(url, 3, 2000, {
+    "x-valve-request-type": "queryAction",
+  });
+  const parsed = JSON.parse(text);
+  if (!parsed.success) {
+    throw new Error("Orderbook API returned unsuccessful response");
+  }
+  return parsed.data as OrderBookData;
 }
