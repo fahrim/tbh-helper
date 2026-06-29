@@ -28,9 +28,9 @@ function buildSearchUrl(start: number): string {
 
 function parseSteamPrice(subtotal: string): number | null {
   if (!subtotal) return null;
-  const cleaned = subtotal.replace(/[^0-9,.-]/g, "").replace(",", ".");
-  const val = parseFloat(cleaned);
-  return isNaN(val) ? null : val;
+  const cents = parseInt(subtotal.replace(/[^0-9]/g, ""), 10);
+  if (isNaN(cents)) return null;
+  return cents / 100;
 }
 
 function inferGradeFromHash(hashName: string): string {

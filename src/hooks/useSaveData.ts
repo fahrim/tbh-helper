@@ -956,9 +956,11 @@ export function useSaveData() {
 
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
 
+    let ignore = false;
     searchDebounceRef.current = setTimeout(async () => {
       setSearchingSteam(true);
       const results = await SteamMarketProvider.searchItems(searchQuery.trim());
+      if (ignore) return;
       if (results.length > 0) {
         const now = Date.now();
         const priceUpdates: Record<string, { price: number; updatedAt: number }> = {};
@@ -976,6 +978,7 @@ export function useSaveData() {
     }, 400);
 
     return () => {
+      ignore = true;
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     };
   }, [searchQuery, activeTab]);

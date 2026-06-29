@@ -175,12 +175,12 @@ export function matchSearchQuery(item: SearchableItem, query: string): boolean {
   const tokens = query.trim().toLowerCase().split(/\s+/);
   return tokens.every((token) => {
     const isNumeric = /^\d+$/.test(token);
-    const nameMatch = item.name.toLowerCase().includes(token);
-    const engMatch = item.marketHashName.toLowerCase().includes(token);
-    const gearMatch = item.gearType !== null && item.gearType.toLowerCase() === token;
-    const gradeMatch = item.grade.toLowerCase() === token;
+    const nameMatch = item.name?.toLowerCase().includes(token) ?? false;
+    const engMatch = item.marketHashName?.toLowerCase().includes(token) ?? false;
+    const gearMatch = item.gearType != null && item.gearType.toLowerCase() === token;
+    const gradeMatch = item.grade?.toLowerCase() === token;
     if (isNumeric) {
-      const levelMatch = item.level !== null && item.level.toString() === token;
+      const levelMatch = item.level != null && item.level.toString() === token;
       return levelMatch || nameMatch || engMatch;
     }
     return nameMatch || engMatch || gearMatch || gradeMatch;
