@@ -4,7 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { TbhItem, ParsedSave, MarketItem, AnalyticsData, TabType, SortType, PortfolioPoint, WishlistItem, InAppNotification } from "../types";
 import { GRADE_MAP, GRADE_COLORS, HERO_CLASS_NAMES, GRADE_RANK } from "../constants";
+import { matchSearchQuery } from "../utils";
 import { PriceManager } from "../services/price/PriceManager";
+import { SteamMarketProvider } from "../services/price/SteamMarketProvider";
 import i18n from "../i18n";
 
 function translateStatusMessage(msg: string, lang: "en" | "tr"): string {
@@ -103,6 +105,8 @@ export function useSaveData() {
   const [onlyUniqueFilter, setOnlyUniqueFilter] = useState(false);
   const [sortBy, setSortBy] = useState<SortType>("value");
   const [hideNoPriceItems, setHideNoPriceItems] = useState(false);
+  const [steamSearchResults, setSteamSearchResults] = useState<MarketItem[]>([]);
+  const [searchingSteam, setSearchingSteam] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Initializing...");
   const [isLive, setIsLive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -984,6 +988,44 @@ export function useSaveData() {
     };
   }, []);
 
+  // Debounced Steam search (only on market tab)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    if (activeTab !== "market" || !searchQuery.trim()) {
+      setSteamSearchResults([]);
+      setSearchingSteam(false);
+      return;
+    }
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    let ignore = false;
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearchingSteam(true);
+      const results = await SteamMarketProvider.searchItems(searchQuery.trim());
+      if (ignore) return;
+      if (results.length > 0) {
+        const now = Date.now();
+        const priceUpdates: Record<string, { price: number; updatedAt: number }> = {};
+        for (const item of results) {
+          if (item.price !== null) {
+            priceUpdates[item.marketHashName] = { price: item.price, updatedAt: now };
+          }
+        }
+        if (Object.keys(priceUpdates).length > 0) {
+          setPrices((prev) => ({ ...prev, ...priceUpdates }));
+        }
+      }
+      setSteamSearchResults(results);
+      setSearchingSteam(false);
+    }, 400);
+
+    return () => {
+      ignore = true;
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    };
+  }, [searchQuery, activeTab]);
+
   const loadSaveFile = () => {
     setStatusMessage("Decrypting SaveFile_Live.es3...");
     invoke<string>("decrypt_save_file")
@@ -1085,11 +1127,7 @@ export function useSaveData() {
     }
     
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter((item) => 
-        item.name.toLowerCase().includes(q) || 
-        (item.gearType && item.gearType.toLowerCase().includes(q))
-      );
+      list = list.filter((item) => matchSearchQuery(item, searchQuery));
     }
     
     if (gradeFilter !== "all") {
@@ -1186,8 +1224,7 @@ export function useSaveData() {
       filtered = filtered.filter((item) => item.price !== null);
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter((item) => item.name.toLowerCase().includes(q));
+      filtered = filtered.filter((item) => matchSearchQuery(item, searchQuery));
     }
     
     if (gradeFilter !== "all") {
@@ -1202,6 +1239,15 @@ export function useSaveData() {
       filtered = filtered.filter((item) => {
         return !!getUniqueModKey(item.name, item.grade);
       });
+    }
+    
+    if (steamSearchResults.length > 0) {
+      const existingHashes = new Set(filtered.map((i) => i.marketHashName));
+      for (const steamItem of steamSearchResults) {
+        if (!existingHashes.has(steamItem.marketHashName)) {
+          filtered.push(steamItem);
+        }
+      }
     }
     
     filtered.sort((a, b) => {
@@ -1221,7 +1267,7 @@ export function useSaveData() {
     });
     
     return filtered;
-  }, [prices, searchQuery, gradeFilter, typeFilter, onlyUniqueFilter, sortBy, hideNoPriceItems, language]);
+  }, [prices, searchQuery, gradeFilter, typeFilter, onlyUniqueFilter, sortBy, hideNoPriceItems, language, steamSearchResults]);
 
   // Analytics Computations
   const analyticsData = useMemo<AnalyticsData | null>(() => {
@@ -1328,6 +1374,7 @@ export function useSaveData() {
     wishlist: localizedWishlist,
     inAppNotifications,
     prices,
+    searchingSteam,
     
     // Actions
     loadSaveFile,

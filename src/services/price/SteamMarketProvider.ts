@@ -1,14 +1,63 @@
 import { PriceProvider } from "./PriceProvider";
-import { fetchUrlWithRetry } from "../../utils";
+import { fetchUrlWithRetry, fetchUrlPostWithRetry } from "../../utils";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { PriceFetchConfig } from "./config";
+import { GRADE_MAP, GRADE_COLORS } from "../../constants";
+import { MarketItem } from "../../types";
 
 const APP_ID = 3678970;
+const STEAM_ICON_BASE = "https://community.fastly.steamstatic.com/economy/image/";
+
+const STEAM_NAME_COLOR_TO_GRADE: Record<string, string> = {
+  "B2B2B2": "Common",
+  "1EFF0A": "Uncommon",
+  "4A6BFF": "Rare",
+  "EBBB00": "Legendary",
+  "E8695A": "Immortal",
+  "FB86FF": "Arcana",
+  "FF0080": "Beyond",
+  "E6E6E6": "Celestial",
+  "FFD700": "Divine",
+  "FF6600": "Cosmic",
+};
 
 function buildSearchUrl(start: number): string {
   return `https://steamcommunity.com/market/search/render/?query=&start=${start}&count=${PriceFetchConfig.pageSize}&search_descriptions=0&sort_column=popular&sort_dir=desc&appid=${APP_ID}&norender=1`;
 }
+
+function parseSteamPrice(subtotal: string): number | null {
+  if (!subtotal) return null;
+  const cents = parseInt(subtotal.replace(/[^0-9]/g, ""), 10);
+  if (isNaN(cents)) return null;
+  return cents / 100;
+}
+
+function inferGradeFromHash(hashName: string): string {
+  const match = hashName.match(/\((\w+)\)/);
+  if (match) {
+    const gradeName = match[1];
+    if (Object.values(GRADE_MAP).includes(gradeName)) return gradeName;
+  }
+  return "Unknown";
+}
+
+function inferGradeFromColor(color: string): string {
+  return STEAM_NAME_COLOR_TO_GRADE[color] || "Unknown";
+}
+
+function parseSteamType(typeStr: string): { gearType: string | null; level: number | null } {
+  if (!typeStr) return { gearType: null, level: null };
+  const match = typeStr.match(/^(.+?)\s*-\s*Lv\.\s*(\d+)$/);
+  if (match) {
+    return {
+      gearType: match[1].trim().toUpperCase(),
+      level: parseInt(match[2], 10),
+    };
+  }
+  return { gearType: null, level: null };
+}
+
 
 function calcTotalPages(totalCount: number): number {
   return Math.ceil(totalCount / PriceFetchConfig.pageSize);
@@ -21,6 +70,61 @@ function calcCurrentPage(start: number): number {
 export class SteamMarketProvider implements PriceProvider {
   id = "steam";
   name = "Steam Market (Direct)";
+
+  static async searchItems(query: string): Promise<MarketItem[]> {
+    if (!query.trim()) return [];
+
+    const url = `https://steamcommunity.com/market/search?appid=${APP_ID}&q=${encodeURIComponent(query)}`;
+    const body = JSON.stringify([{
+      appid: APP_ID,
+      filters: {},
+      price: { eCurrency: 1 },
+      accessoryFilters: {},
+      strQuery: query,
+      start: 0,
+    }]);
+
+    try {
+      const raw = await fetchUrlPostWithRetry(url, body);
+      const data = JSON.parse(raw);
+
+      if (!data?.results?.length) return [];
+
+      const now = Date.now();
+      const items: MarketItem[] = [];
+
+      for (const result of data.results) {
+        const desc = result.asset_description;
+        if (!desc?.market_hash_name) continue;
+
+        const marketHashName = desc.market_hash_name;
+        const grade = inferGradeFromHash(marketHashName);
+        const finalGrade = grade !== "Unknown" ? grade : inferGradeFromColor(desc.name_color);
+        const { gearType, level } = parseSteamType(desc.type);
+        const isMaterial = gearType === null;
+
+        items.push({
+          name: desc.name || marketHashName,
+          grade: finalGrade,
+          gradeColor: GRADE_COLORS[finalGrade] || GRADE_COLORS.Unknown,
+          isMaterial,
+          iconUrl: desc.icon_url ? `${STEAM_ICON_BASE}${desc.icon_url}` : null,
+          marketHashName,
+          price: parseSteamPrice(result.strMinSellSubtotal),
+          itemKey: marketHashName,
+          lookupKey: marketHashName,
+          gearType,
+          level,
+          updatedAt: now,
+        });
+      }
+
+      return items;
+    } catch (err) {
+      console.warn("Steam search failed:", err);
+      return [];
+    }
+  }
 
   async fetchPrices(
     onProgress?: (prices: Record<string, number>, current: number, total: number, has429?: boolean) => void,

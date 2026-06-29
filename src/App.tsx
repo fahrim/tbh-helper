@@ -98,6 +98,7 @@ export default function App() {
     wishlist,
     inAppNotifications,
     prices,
+    searchingSteam,
     addToWishlist,
     removeFromWishlist,
     dismissNotification,
@@ -141,6 +142,7 @@ export default function App() {
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onClick={(item) => setSelectedDetailItem(item as any)}
+          searchingSteam={searchingSteam}
         />
       );
     }
@@ -216,6 +218,7 @@ export default function App() {
         setSortBy={setSortBy}
         hideNoPriceItems={hideNoPriceItems}
         setHideNoPriceItems={setHideNoPriceItems}
+        searchingSteam={searchingSteam}
       />
 
       <main

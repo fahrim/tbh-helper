@@ -191,6 +191,37 @@ fn fetch_url(url: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn fetch_url_post(url: String, body: String) -> Result<String, String> {
+    let mut request = ureq::post(&url)
+        .set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        .set("Content-Type", "application/json; charset=utf-8")
+        .set("x-valve-action-type", "ZFJAHYDA:SearchMarketListings")
+        .set("x-valve-request-type", "routeAction")
+        .set("Referer", &url);
+
+    if let Ok(guard) = STEAM_COOKIES.lock() {
+        if let Some(cookies_str) = &*guard {
+            request = request.set("Cookie", cookies_str);
+            println!("DEBUG: fetch_url_post -> sending request WITH Steam cookies: {}", url);
+        } else {
+            println!("DEBUG: fetch_url_post -> sending request WITHOUT Steam cookies (Guest): {}", url);
+        }
+    } else {
+        println!("DEBUG: fetch_url_post -> sending request WITHOUT Steam cookies (Guest): {}", url);
+    }
+
+    let response = request
+        .send_string(&body)
+        .map_err(|e| format!("POST request failed: {}", e))?;
+
+    let response_body = response
+        .into_string()
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
+
+    Ok(response_body)
+}
+
+#[tauri::command]
 #[allow(deprecated)]
 fn open_in_browser(app_handle: AppHandle, url: String) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
@@ -382,6 +413,7 @@ pub fn run() {
             start_save_watcher,
             select_custom_save_file,
             fetch_url,
+            fetch_url_post,
             open_in_browser,
             is_steam_logged_in,
             logout_steam,

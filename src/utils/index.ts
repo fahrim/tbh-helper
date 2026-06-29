@@ -20,6 +20,22 @@ export async function fetchUrlWithRetry(url: string, retries = 3, baseDelay = 20
   throw new Error("Failed after retries");
 }
 
+export async function fetchUrlPostWithRetry(url: string, body: string, retries = 3, baseDelay = 2000): Promise<string> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await invoke<string>("fetch_url_post", { url, body });
+    } catch (err) {
+      if (i === retries - 1) {
+        throw err;
+      }
+      const delay = baseDelay * Math.pow(2, i);
+      console.warn(`POST request failed for ${url}. Retrying in ${delay}ms... Error:`, err);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error("Failed after retries");
+}
+
 export const formatDecimal = (val: string | number): string => {
   return String(val).replace(".", ",");
 };
@@ -239,6 +255,31 @@ export const getInherentStats = (
   
   return stats;
 };
+
+export interface SearchableItem {
+  name: string;
+  marketHashName: string;
+  gearType: string | null;
+  grade: string;
+  level: number | null;
+}
+
+export function matchSearchQuery(item: SearchableItem, query: string): boolean {
+  if (!query.trim()) return true;
+  const tokens = query.trim().toLowerCase().split(/\s+/);
+  return tokens.every((token) => {
+    const isNumeric = /^\d+$/.test(token);
+    const nameMatch = item.name?.toLowerCase().includes(token) ?? false;
+    const engMatch = item.marketHashName?.toLowerCase().includes(token) ?? false;
+    const gearMatch = item.gearType != null && item.gearType.toLowerCase() === token;
+    const gradeMatch = item.grade?.toLowerCase() === token;
+    if (isNumeric) {
+      const levelMatch = item.level != null && item.level.toString() === token;
+      return levelMatch || nameMatch || engMatch;
+    }
+    return nameMatch || engMatch || gearMatch || gradeMatch;
+  });
+}
 
 export const getInherentOptions = (
   gearType: string | null,
