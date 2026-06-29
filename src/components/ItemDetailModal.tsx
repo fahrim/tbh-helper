@@ -129,6 +129,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<PricePoint[]>([]);
+  const [livePricePoints, setLivePricePoints] = useState<PricePoint[]>([]);
   const [orderBook, setOrderBook] = useState<OrderBookSummary | null>(null);
   const [orderBookUpdatedAt, setOrderBookUpdatedAt] = useState<number | null>(null);
   const [orderBookError, setOrderBookError] = useState<string | null>(null);
@@ -195,6 +196,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setLoading(true);
     setError(null);
     setHistory([]);
+    setLivePricePoints([]);
     setOrderBook(null);
     setOrderBookUpdatedAt(null);
     setOrderBookError(null);
@@ -232,11 +234,24 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
     const interval = setInterval(() => {
       fetchOrderBook(item.marketHashName).then((data) => {
-        if (active) {
-          setOrderBook(summarizeOrderBook(data));
-          setOrderBookUpdatedAt(Date.now());
-          setOrderBookError(null);
-        }
+        if (!active) return;
+        const summary = summarizeOrderBook(data);
+        setOrderBook(summary);
+        setOrderBookUpdatedAt(Date.now());
+        setOrderBookError(null);
+        setLivePricePoints((prev) => {
+          const now = new Date();
+          const point: PricePoint = {
+            date: now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            fullDate: now.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
+            price: summary.lowestSellPrice,
+            volume: summary.totalSellOrders,
+            timestamp: Date.now(),
+          };
+          const merged = [...prev, point];
+          if (merged.length > 60) merged.splice(0, merged.length - 60);
+          return merged;
+        });
       }).catch((err) => {
         console.error("Orderbook poll failed:", err);
         if (active) {
@@ -251,30 +266,36 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     };
   }, [item]);
 
-  // Dynamic filter history computation
+  // Dynamic filter history computation (SSR history + live price points)
+  const combinedHistory = useMemo(() => {
+    if (livePricePoints.length === 0) return history;
+    return [...history, ...livePricePoints];
+  }, [history, livePricePoints]);
+
   const filteredHistory = useMemo(() => {
-    if (history.length === 0) return [];
+    const base = combinedHistory;
+    if (base.length === 0) return [];
     
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     
     switch (activeFilter) {
       case "7d": {
-        const maxTime = Math.max(...history.map(p => p.timestamp));
-        return history.filter(p => p.timestamp >= maxTime - 7 * MS_PER_DAY);
+        const maxTime = Math.max(...base.map(p => p.timestamp));
+        return base.filter(p => p.timestamp >= maxTime - 7 * MS_PER_DAY);
       }
       case "3d": {
-        const maxTime3 = Math.max(...history.map(p => p.timestamp));
-        return history.filter(p => p.timestamp >= maxTime3 - 3 * MS_PER_DAY);
+        const maxTime3 = Math.max(...base.map(p => p.timestamp));
+        return base.filter(p => p.timestamp >= maxTime3 - 3 * MS_PER_DAY);
       }
       case "1d": {
-        const maxTime1 = Math.max(...history.map(p => p.timestamp));
-        return history.filter(p => p.timestamp >= maxTime1 - 1 * MS_PER_DAY);
+        const maxTime1 = Math.max(...base.map(p => p.timestamp));
+        return base.filter(p => p.timestamp >= maxTime1 - 1 * MS_PER_DAY);
       }
       case "all":
       default:
-        return history;
+        return base;
     }
-  }, [history, activeFilter]);
+  }, [combinedHistory, activeFilter]);
 
   // Stats calculation
   const chartStats = useMemo(() => {
@@ -457,14 +478,36 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             </div>
           </div>
           <div className="modal-item-pricing-header" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <span className="price-label">{t("lastKnownPrice")}</span>
-            <span className="price-value gold">
-              {item.price !== null ? formatPrice(item.price) : t("priceNotFound")}
-            </span>
-            {item.updatedAt && (
-              <span style={{ fontSize: "10px", color: "var(--text-dark)", marginTop: "2px" }}>
-                {t("updated")}: {new Date(item.updatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-              </span>
+            {orderBook ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span className="live-dot" />
+                  <span className="price-label">{t("livePrice")}</span>
+                </div>
+                <span className="price-value gold">
+                  {formatPrice(orderBook.lowestSellPrice)}
+                </span>
+                <span style={{ fontSize: "9px", color: "var(--text-dark)", marginTop: "2px" }}>
+                  {t("updated")}: {orderBookUpdatedAt ? new Date(orderBookUpdatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : ""}
+                </span>
+                {item.price !== null && (
+                  <span style={{ fontSize: "9px", color: "var(--text-muted)", marginTop: "1px" }}>
+                    {t("lastKnownPrice")}: {formatPrice(item.price)}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <span className="price-label">{t("lastKnownPrice")}</span>
+                <span className="price-value gold">
+                  {item.price !== null ? formatPrice(item.price) : t("priceNotFound")}
+                </span>
+                {item.updatedAt && (
+                  <span style={{ fontSize: "10px", color: "var(--text-dark)", marginTop: "2px" }}>
+                    {t("updated")}: {new Date(item.updatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>

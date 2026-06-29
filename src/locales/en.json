@@ -142,6 +142,7 @@
   "quantity": "QUANTITY",
   "lastKnownPrice": "LAST KNOWN PRICE",
   "updated": "Updated",
+  "livePrice": "Live Price",
   "highestBuy": "Highest Buy",
   "lowestSell": "Lowest Sell",
   "spread": "Spread",

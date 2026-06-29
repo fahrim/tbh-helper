@@ -142,6 +142,7 @@
   "quantity": "ADET",
   "lastKnownPrice": "SON BİLİNEN FİYAT",
   "updated": "Güncellendi",
+  "livePrice": "Canlı Fiyat",
   "highestBuy": "En Yüksek Alım",
   "lowestSell": "En Düşük Satış",
   "spread": "Fark",
