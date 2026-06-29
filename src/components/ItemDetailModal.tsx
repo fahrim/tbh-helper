@@ -1,78 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
-import { fetchUrlWithRetry, isUnobtainableItem, getInherentStats, getInherentOptions, getUniqueModKeyById } from "../utils";
+import { formatPrice } from "../utils";
+import { fetchMarketDetail, PricePoint, ActiveListing } from "../services/marketDataService";
 import { TbhItem, WishlistItem } from "../types";
-// @ts-ignore
-import materialEffectsRaw from "../constants/material_effects.json";
 import "../styles/item-detail-modal.css";
-
-const materialEffects = materialEffectsRaw as any[];
-
-const STAT_TRANSLATIONS: Record<string, string> = {
-  "Fire Damage Percent": "Ateş Hasarı Yüzdesi",
-  "Fire Resistance": "Ateş Direnci",
-  "Attack Damage": "Saldırı Hasarı",
-  "Cold Damage Percent": "Soğuk Hasarı Yüzdesi",
-  "Armor": "Zırh",
-  "Critical Chance": "Kritik Şansı",
-  "Lightning Damage Percent": "Yıldırım Hasarı Yüzdesi",
-  "Cast Speed": "Büyü Hızı",
-  "Attack Speed": "Saldırı Hızı",
-  "Damage Absorption": "Hasar Emilimi",
-  "Movement Speed": "Hareket Hızı",
-  "Physical Damage Percent": "Fiziksel Hasar Yüzdesi",
-  "Max HP": "Maks HP",
-  "Cooldown Reduction": "Bekleme Süresi Azaltma",
-  "Cold Resistance": "Soğuk Direnci",
-  "Block Chance": "Engelleme Şansı",
-  "Area Of Effect": "Etki Alanı",
-  "Lightning Resistance": "Yıldırım Direnci",
-  "Add Hp Per Kill": "Öldürme Başı Can",
-  "Add HP Per Hit": "İsabet Başı Can",
-  "Critical Damage": "Kritik Hasarı",
-  "XP Gain": "TP Artışı",
-  "Gold Gain": "Altın Artışı",
-  "Magic Damage": "Büyü Hasarı",
-  "Evasion": "Kaçınma",
-  "Item Find": "Eşya Bulma Şansı",
-  "Increased Attack Damage": "Arttırılmış Saldırı Hasarı",
-  "Skill Level": "Yetenek Seviyesi",
-  "Accuracy": "İsabet",
-  "Increased Magic Damage": "Arttırılmış Büyü Hasarı",
-  "Damage Reduction": "Hasar Azaltma",
-  "All Elemental Resistance": "Tüm Element Dirençleri",
-  "Mana Regen": "Mana Yenileme",
-  "Add Mp Per Hit": "İsabet Başı Mana",
-  "Add Mp Per Kill": "Öldürme Başı Mana",
-  "Chaos Resistance": "Kaos Direnci",
-  "Chaos Damage Percent": "Kaos Hasarı Yüzdesi",
-  "Increased Critical Damage": "Arttırılmış Kritik Hasarı",
-  "Increased Cooldown Reduction": "Arttırılmış Bekleme Süresi Azaltma",
-  "Basic Attack Requirement Reduction": "Temel Saldırı Gereksinimi Azaltma",
-  "Increased All Hero Attack Damage": "Tüm Kahramanların Saldırı Hasarı Artışı",
-  "Increased All Hero Armor": "Tüm Kahramanların Zırhı Artışı",
-  "Increased All Hero Attack Speed": "Tüm Kahramanların Saldırı Hızı Artışı",
-  "Increased All Hero Movement Speed": "Tüm Kahramanların Hareket Hızı Artışı",
-  "Gold From Stage Boss Kill": "Aşama Bossundan Gelen Altın",
-  "Gold From Act Boss Kill": "Bölüm Bossundan Gelen Altın",
-  "Gold From Normal Monster Kill": "Normal Canavarlardan Gelen Altın",
-  "Exp From Stage Boss Kill": "Aşama Bossundan Gelen TP",
-  "Exp From Act Boss Kill": "Bölüm Bossundan Gelen TP",
-  "Exp From Normal Monster Kill": "Normal Canavarlardan Gelen TP",
-  "Increased Gold From Cube Alchemy": "Arttırılmış Küp Simyası Altını",
-  "Increased Cube Exp": "Arttırılmış Küp Deneyimi",
-  "Block Amount": "Engelleme Miktarı",
-  "HP Regen": "Can Yenileme",
-  "Double Hit Chance": "Çift Vuruş Şansı",
-  "Double Magic Chance": "Çift Büyü Şansı",
-  "Chaos Damage Addition": "Kaos Hasarı İlavesi",
-  "Fire Damage Addition": "Ateş Hasarı İlavesi",
-  "Cold Damage Addition": "Soğuk Hasarı İlavesi",
-  "Lightning Damage Addition": "Yıldırım Hasarı İlavesi",
-  "Phys. Damage Addition": "Fiziksel Hasar İlavesi",
-  "Mag. Damage Addition": "Büyüsel Hasar İlavesi"
-};
 
 interface ItemDetailModalProps {
   item: TbhItem | null;
@@ -82,19 +14,6 @@ interface ItemDetailModalProps {
   onRemoveFromWishlist?: (itemKey: string) => void;
 }
 
-interface PricePoint {
-  date: string;
-  fullDate?: string;
-  price: number;
-  volume: number;
-  timestamp: number;
-}
-
-interface ActiveListing {
-  price: number;
-  count: number;
-}
-
 export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ 
   item, 
   onClose,
@@ -102,8 +21,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
   onAddToWishlist,
   onRemoveFromWishlist
 }) => {
-  const { t, i18n } = useTranslation();
-  const currentLang = i18n.language || "en";
+  const { t } = useTranslation();
 
   const getLocalizedLocation = (loc: string) => {
     switch (loc.toLowerCase()) {
@@ -115,27 +33,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     }
   };
 
-  const translateStat = (statName: string): string => {
-    if (currentLang === "tr" && STAT_TRANSLATIONS[statName]) {
-      return STAT_TRANSLATIONS[statName];
-    }
-    return statName;
-  };
-
-  const translateSlotName = (slotName: string): string => {
-    if (slotName.toLowerCase() === "weapon") return t("slotWeapon");
-    if (slotName.toLowerCase() === "armor") return t("slotArmor");
-    if (slotName.toLowerCase() === "accessory") return t("slotAccessory");
-    if (slotName.toLowerCase() === "all slots") return t("slotAll");
-    return slotName;
-  };
-
   if (!item) return null;
-
-  const inherentStats = getInherentStats(item.gearType, item.level || 1, item.grade, item.lookupKey);
-  const inherentOptions = getInherentOptions(item.gearType, item.level || 1, item.grade, item.lookupKey);
-  const uniqueModKey = getUniqueModKeyById(item.lookupKey);
-  const isMaterial = !item.gearType;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,22 +82,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     });
   };
 
-  const handleOpenWiki = () => {
-    const cleanName = item.marketHashName
-      .replace(/ \([^)]+\)(?: A)?$/, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-    const isGear = !!item.gearType;
-    const url = isGear
-      ? `https://taskbarhero.wiki/items/${item.lookupKey}-${cleanName}`
-      : `https://taskbarhero.wiki/items/${cleanName}`;
-    invoke("open_in_browser", { url }).catch((err) => {
-      console.error("Failed to open Wiki in browser:", err);
-    });
-  };
-
-  // Fetch prices on open
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -207,121 +89,12 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setHistory([]);
     setListings([]);
 
-    const fetchDetailData = async () => {
+    (async () => {
       try {
-        const encodedHash = encodeURIComponent(item.marketHashName);
-        let parsedHistory: PricePoint[] = [];
-        let parsedListings: ActiveListing[] = [];
-
-        // 1. Fetch main Steam Market page HTML
-        const htmlUrl = `https://steamcommunity.com/market/listings/3678970/${encodedHash}`;
-        const html = await fetchUrlWithRetry(htmlUrl);
-        
+        const result = await fetchMarketDetail(item.marketHashName);
         if (active) {
-          // Parse historical prices from SSR query cache JSON
-          const pricesMatch = html.match(/prices\\*":\s*(\[[\s\S]*?\])/);
-          if (pricesMatch) {
-            const cleanJson = pricesMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\/g, '');
-            try {
-              const pricesList = JSON.parse(cleanJson);
-              if (Array.isArray(pricesList) && pricesList.length > 0) {
-                parsedHistory = pricesList.map((p: any) => {
-                  const d = new Date(p.time * 1000);
-                  const dateCleanShort = d.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric"
-                  });
-                  const dateCleanFull = d.toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false
-                  });
-                  let price = parseFloat(p.price_median) || 0;
-                  return {
-                    date: dateCleanShort,
-                    fullDate: dateCleanFull,
-                    price,
-                    volume: parseInt(p.purchases) || 0,
-                    timestamp: p.time * 1000
-                  };
-                });
-              }
-            } catch (jsonErr) {
-              console.warn("Failed to parse prices JSON:", jsonErr);
-            }
-          } else {
-            // Try legacy regex format fallback
-            const historyMatch = html.match(/line1\s*=\s*(\[[\s\S]*?\]);/);
-            if (historyMatch) {
-              try {
-                const rawPoints = JSON.parse(historyMatch[1]);
-                parsedHistory = rawPoints.map((p: any) => {
-                  const dateRaw = String(p[0]);
-                  const d = new Date(dateRaw);
-                  const timestamp = d.getTime();
-                  const isValid = !isNaN(timestamp);
-                  
-                  let dateCleanShort = dateRaw;
-                  let dateCleanFull = dateRaw;
-                  
-                  if (isValid) {
-                    dateCleanShort = d.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric"
-                    });
-                    dateCleanFull = d.toLocaleString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false
-                    });
-                  } else {
-                    const parts = dateRaw.split(" ");
-                    dateCleanShort = parts.length >= 3 ? `${parts[0]} ${parts[1]} ${parts[2]}` : dateRaw;
-                  }
-
-                  let price = parseFloat(p[1]) || 0;
-                  return {
-                    date: dateCleanShort,
-                    fullDate: dateCleanFull,
-                    price,
-                    volume: parseInt(p[2]) || 0,
-                    timestamp: isValid ? timestamp : 0
-                  };
-                });
-              } catch (jsonErr) {
-                console.warn("Failed to parse legacy history JSON:", jsonErr);
-              }
-            }
-          }
-
-          // Parse sell orders from SSR query cache JSON
-          const sellOrdersMatch = html.match(/rgCompactSellOrders\\*":\s*(\[[\s\S]*?\])/);
-          if (sellOrdersMatch) {
-            const cleanJson = sellOrdersMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\/g, '');
-            try {
-              const sellOrdersList = JSON.parse(cleanJson);
-              if (Array.isArray(sellOrdersList)) {
-                for (let i = 0; i < sellOrdersList.length; i += 2) {
-                  const price = sellOrdersList[i] / 100;
-                  const count = sellOrdersList[i + 1];
-                  parsedListings.push({ price, count });
-                }
-              }
-            } catch (jsonErr) {
-              console.warn("Failed to parse sell orders JSON:", jsonErr);
-            }
-          }
-
-          setHistory(parsedHistory);
-          setListings(parsedListings);
+          setHistory(result.history);
+          setListings(result.listings);
           setLoading(false);
         }
       } catch (err: any) {
@@ -331,9 +104,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           setLoading(false);
         }
       }
-    };
-
-    fetchDetailData();
+    })();
 
     return () => {
       active = false;
@@ -494,10 +265,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setHoveredPoint(null);
   };
 
-  const formatPrice = (val: number) => {
-    return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
-  };
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
@@ -518,11 +285,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
             <h2 className="modal-item-title">{item.name}</h2>
             <div className="modal-item-meta">
               <span className="grade-tag" style={{ color: item.gradeColor }}>{t("gradeText", { grade: item.grade })}</span>
-              {isUnobtainableItem(item.lookupKey) && (
-                <span className="chaotic-tag" style={{ backgroundColor: "#ef4444", color: "#fff", border: "none" }}>
-                  {t("unobtainable")}
-                </span>
-              )}
               {item.level && <span className="level-tag">LVL {item.level}</span>}
               {item.isChaotic && <span className="chaotic-tag">CHAOTIC</span>}
               {item.location && <span className="location-tag">{getLocalizedLocation(item.location)}</span>}
@@ -540,13 +302,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
               >
                 {t("webBrowser")} ↗
               </button>
-              <button 
-                onClick={handleOpenWiki}
-                className="steam-link-btn wiki"
-                title={t("openWikiTitle", { name: item.name })}
-              >
-                Wiki ↗
-              </button>
             </div>
           </div>
           <div className="modal-item-pricing-header" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
@@ -563,26 +318,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
         </div>
 
         <div className="modal-divider" />
-
-        {isUnobtainableItem(item.lookupKey) && (
-          <div style={{
-            backgroundColor: "rgba(239, 68, 68, 0.08)",
-            border: "1px dashed #ef4444",
-            borderRadius: "8px",
-            padding: "10px 14px",
-            margin: "0 24px 16px 24px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            fontSize: "13px",
-            color: "#f87171"
-          }}>
-            <span style={{ fontSize: "16px" }}>⚠️</span>
-            <span>
-              <strong>{t("unobtainable")}:</strong> {t("unobtainableWarnDetail")}
-            </span>
-          </div>
-        )}
 
         {/* Modal Content Grid */}
         <div className="modal-body-layout">
@@ -774,91 +509,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           {/* Right Column: Active Market Listings + Wishlist */}
           <div className="modal-listings-container" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             
-            {/* Item Stats Card */}
-            {(!isMaterial || (isMaterial && materialEffects.some(m => m.id === item.lookupKey))) && (
-              <div className="wishlist-settings-card" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", padding: "16px", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <h3 className="section-title" style={{ margin: 0, fontSize: "14px", color: "var(--accent-gold)", display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>📊 {currentLang === "tr" ? "Eşya Özellikleri" : "Item Stats"}</span>
-                </h3>
-                
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {/* For Gear */}
-                  {!isMaterial && (
-                    <>
-                      {/* Base Stats */}
-                      {inherentStats.map((st, idx) => (
-                        <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", borderBottom: "1px solid rgba(255,255,255,0.03)", paddingBottom: "4px" }}>
-                          <span style={{ color: "var(--text-muted)" }}>{translateStat(st.name)}</span>
-                          <span style={{ color: "#fff", fontWeight: "bold" }}>{st.value}</span>
-                        </div>
-                      ))}
-                      
-                      {/* Inherent Options */}
-                      {inherentOptions.map((opt, idx) => (
-                        <div key={idx} style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", gap: "6px", alignItems: "flex-start" }}>
-                          <span style={{ color: "var(--accent-gold)" }}>▪</span>
-                          <span>{opt}</span>
-                        </div>
-                      ))}
-
-                      {/* Unique Mod */}
-                      {uniqueModKey && uniqueModKey !== "none" && (
-                        <div style={{ 
-                          fontSize: "12px", 
-                          color: "var(--accent-gold)", 
-                          background: "rgba(255, 184, 48, 0.05)", 
-                          border: "1px solid rgba(255, 184, 48, 0.15)", 
-                          padding: "8px 10px", 
-                          borderRadius: "6px", 
-                          marginTop: "4px" 
-                        }}>
-                          <span style={{ fontWeight: "bold", display: "block", fontSize: "11px", textTransform: "uppercase", marginBottom: "2px" }}>
-                            {t("uniqueStatTitle")}
-                          </span>
-                          {t(`uniqueMods.${uniqueModKey}`)}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {/* For Materials */}
-                  {isMaterial && (() => {
-                    const matEffect = materialEffects.find((m: any) => m.id === item.lookupKey);
-                    if (!matEffect || !matEffect.slots) return null;
-                    
-                    return (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {Object.entries(matEffect.slots).map(([slotKey, slotData]: [string, any]) => (
-                          <div key={slotKey} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                            <div style={{ fontSize: "11px", color: "var(--accent-gold)", fontWeight: "bold", display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "2px" }}>
-                              <span>
-                                {slotKey.toLowerCase() === "weapon" ? "⚔" : slotKey.toLowerCase() === "armor" ? "🛡" : "📿"}{" "}
-                                {translateSlotName(slotKey)}
-                              </span>
-                              {slotData.rollChance && (
-                                <span style={{ color: "var(--text-dark)", fontSize: "10px" }}>
-                                  {slotData.rollChance} {t("each", "each")}
-                                </span>
-                              )}
-                            </div>
-                            {slotData.stats.map((st: any, idx: number) => (
-                              <div key={idx} style={{ fontSize: "12px", display: "flex", justifyContent: "space-between", paddingLeft: "8px" }}>
-                                <span style={{ color: "var(--text-muted)" }}>{translateStat(st.name)}</span>
-                                <span style={{ color: "#fff", fontWeight: "bold" }}>
-                                  {st.value}
-                                  {st.tier && <span style={{ color: "var(--accent-gold)", fontSize: "10px", marginLeft: "4px" }}>({st.tier})</span>}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
             {/* Wishlist Settings Block */}
             <div className="wishlist-settings-card" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", padding: "16px", borderRadius: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
               <h3 className="section-title" style={{ margin: 0, fontSize: "14px", color: "var(--accent-gold)", display: "flex", alignItems: "center", gap: "6px" }}>

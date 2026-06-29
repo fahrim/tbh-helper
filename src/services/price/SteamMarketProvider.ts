@@ -1,5 +1,5 @@
 import { PriceProvider } from "./PriceProvider";
-import { fetchUrlWithRetry, fetchUrlPostWithRetry } from "../../utils";
+import { fetchUrlWithRetry, fetchUrlPostWithRetry, parsePriceString, centsToDollars } from "../../utils";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { PriceFetchConfig } from "./config";
@@ -24,13 +24,6 @@ const STEAM_NAME_COLOR_TO_GRADE: Record<string, string> = {
 
 function buildSearchUrl(start: number): string {
   return `https://steamcommunity.com/market/search/render/?query=&start=${start}&count=${PriceFetchConfig.pageSize}&search_descriptions=0&sort_column=popular&sort_dir=desc&appid=${APP_ID}&norender=1`;
-}
-
-function parseSteamPrice(subtotal: string): number | null {
-  if (!subtotal) return null;
-  const cents = parseInt(subtotal.replace(/[^0-9]/g, ""), 10);
-  if (isNaN(cents)) return null;
-  return cents / 100;
 }
 
 function inferGradeFromHash(hashName: string): string {
@@ -110,7 +103,7 @@ export class SteamMarketProvider implements PriceProvider {
           isMaterial,
           iconUrl: desc.icon_url ? `${STEAM_ICON_BASE}${desc.icon_url}` : null,
           marketHashName,
-          price: parseSteamPrice(result.strMinSellSubtotal),
+          price: parsePriceString(result.strMinSellSubtotal),
           itemKey: marketHashName,
           lookupKey: marketHashName,
           gearType,
@@ -196,7 +189,7 @@ export class SteamMarketProvider implements PriceProvider {
             for (const item of data1.results) {
               const hashName = item.hash_name || item.market_hash_name;
               if (hashName && item.sell_price) {
-                const val = item.sell_price / 100;
+                const val = centsToDollars(item.sell_price);
                 priceMap[hashName] = val;
                 pagePrices[hashName] = val;
               }
@@ -219,7 +212,7 @@ export class SteamMarketProvider implements PriceProvider {
               for (const item of data.results) {
                 const hashName = item.hash_name || item.market_hash_name;
                 if (hashName && item.sell_price) {
-                  const val = item.sell_price / 100;
+                  const val = centsToDollars(item.sell_price);
                   priceMap[hashName] = val;
                   pagePrices[hashName] = val;
                 }
@@ -256,7 +249,7 @@ export class SteamMarketProvider implements PriceProvider {
             for (const item of data1.results) {
               const hashName = item.hash_name || item.market_hash_name;
               if (hashName && item.sell_price) {
-                const val = item.sell_price / 100;
+                const val = centsToDollars(item.sell_price);
                 priceMap[hashName] = val;
                 pagePrices[hashName] = val;
               }
@@ -338,7 +331,7 @@ export class SteamMarketProvider implements PriceProvider {
             for (const item of data.results) {
               const hashName = item.hash_name || item.market_hash_name;
               if (hashName && item.sell_price) {
-                const val = item.sell_price / 100;
+                const val = centsToDollars(item.sell_price);
                 priceMap[hashName] = val;
                 pagePrices[hashName] = val;
               }
