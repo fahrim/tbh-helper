@@ -1,4 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+// @ts-ignore
+import gearDetailsRaw from "../constants/gear_details.json";
+
+const gearDetails = gearDetailsRaw as any;
 
 export async function fetchUrlWithRetry(url: string, retries = 3, baseDelay = 2000): Promise<string> {
   for (let i = 0; i < retries; i++) {
@@ -155,7 +159,38 @@ export const getSlotLimits = (grade: string, gearType: string | null) => {
   }
 };
 
-export const getInherentStats = (gearType: string | null, level: number | null, grade: string) => {
+export const getInherentStats = (
+  gearType: string | null,
+  level: number | null,
+  grade: string,
+  itemId?: string | null
+) => {
+  if (itemId && gearDetails.stats[itemId]) {
+    const d = gearDetails.stats[itemId];
+    const stats: { name: string; value: string }[] = [];
+    const uGearType = gearType ? gearType.toUpperCase() : "";
+    
+    // BaseStat1
+    if (d.b1 !== undefined && d.b1 !== null) {
+      let statName = "Defense";
+      if (["SWORD", "BOW", "CROSSBOW", "AXE", "HATCHET", "DAGGER"].includes(uGearType)) {
+        statName = "Attack Damage";
+      } else if (["STAFF", "SCEPTER", "ORB", "TOME", "GRIMOIRE"].includes(uGearType)) {
+        statName = "Magic Damage";
+      }
+      stats.push({ name: statName, value: `+${d.b1.toLocaleString()}` });
+    }
+    
+    // BaseStat2
+    if (d.b2 !== undefined && d.b2 !== null) {
+      let statName = "Attack Speed";
+      const displayVal = `+${(d.b2 / 100).toFixed(2)}/s`;
+      stats.push({ name: statName, value: displayVal });
+    }
+    
+    return stats;
+  }
+
   if (!gearType || !level) return [];
   
   const stats: { name: string; value: string }[] = [];
@@ -205,7 +240,74 @@ export const getInherentStats = (gearType: string | null, level: number | null, 
   return stats;
 };
 
-export const getInherentOptions = (gearType: string | null, level: number | null, grade: string) => {
+export const getInherentOptions = (
+  gearType: string | null,
+  level: number | null,
+  grade: string,
+  itemId?: string | null
+) => {
+  if (itemId && gearDetails.stats[itemId]) {
+    const d = gearDetails.stats[itemId];
+    const options: string[] = [];
+    
+    const PERCENT_STATS = new Set([
+      'AttackSpeed', 'CriticalDamage', 'CooldownReduction', 'CriticalChance',
+      'CastSpeed', 'DamageReduction', 'AllElementalResistance', 'BlockChance',
+      'HpLeech', 'IncreaseProjectileDamage', 'SkillHealIncrease', 'SkillDurationIncrease',
+      'SkillRangeExpansion', 'MovementSpeed', 'Multistrike', 'IncreaseExpAmount', 'DodgeChance'
+    ]);
+    
+    const formatOption = (statName: string, modType: string, val: number) => {
+      const displayNames: Record<string, string> = {
+        MaxHp: "Max HP",
+        CooldownReduction: "Cooldown Reduction",
+        HpRegenPerSec: "HP Regen Per Sec",
+        AttackDamage: "Attack Damage",
+        CriticalChance: "Critical Chance",
+        CriticalDamage: "Critical Damage",
+        AttackSpeed: "Attack Speed",
+        Armor: "Armor",
+        DamageReduction: "Damage Reduction",
+        AllElementalResistance: "All Elemental Resistance",
+        BlockChance: "Block Chance",
+        HpLeech: "Hp Leech",
+        IncreaseProjectileDamage: "Increase Projectile Damage",
+        SkillHealIncrease: "Skill Heal Increase",
+        DamageAbsorption: "Damage Absorption",
+        SkillDurationIncrease: "Skill Duration Increase",
+        SkillRangeExpansion: "Skill Range Expansion",
+        AddHpPerKill: "Add HP Per Kill",
+        MovementSpeed: "Movement Speed",
+        AddAllSkillLevel: "Add All Skill Level",
+        BaseAttackCountReduction: "Base Attack Count Reduction",
+        ProjectileCount: "Projectile Count",
+        Multistrike: "Multistrike",
+        IncreaseExpAmount: "Increase Exp Amount",
+        DodgeChance: "Dodge Chance"
+      };
+      
+      const name = displayNames[statName] || statName;
+      const isPercent = modType === "ADDITIVE" || modType === "MULTIPLICATIVE" || PERCENT_STATS.has(statName);
+      
+      if (isPercent) {
+        return `${name} +${(val / 10).toFixed(1).replace('.0', '')}%`;
+      }
+      return `${name} +${val.toLocaleString()}`;
+    };
+    
+    if (d.i1) {
+      options.push(formatOption(gearDetails.statMap[d.i1[0]], gearDetails.modMap[d.i1[1]], d.i1[2]));
+    }
+    if (d.i2) {
+      options.push(formatOption(gearDetails.statMap[d.i2[0]], gearDetails.modMap[d.i2[1]], d.i2[2]));
+    }
+    if (d.i3) {
+      options.push(formatOption(gearDetails.statMap[d.i3[0]], gearDetails.modMap[d.i3[1]], d.i3[2]));
+    }
+    
+    return options;
+  }
+
   if (!gearType || !level) return [];
   
   const options: string[] = [];
@@ -261,4 +363,51 @@ export const getInherentOptions = (gearType: string | null, level: number | null
   }
   
   return options;
+};
+
+const WIKI_TO_LOCAL_MOD_MAP: Record<string, string> = {
+  SkillMultiStrikeCountUp: "multistrikeCountPlusOne",
+  ShieldChargeKillCooldown: "shieldChargeReset",
+  SkillProjectileCountUp: "projectileCountPlusOne",
+  SkewerShotBleedingStrike: "skewerShotBleed",
+  ArrowRainCriticalCooldown: "arrowRainCritReduce",
+  FlameHydraBerserk: "hydraSpeedIncrease",
+  SorcererLightningShock: "lightningShockChance",
+  IceOrbFreezeToCold: "iceOrbFreeze",
+  SnowstormEnhanceFrozenEnemy: "snowstormFrozenBonus",
+  SkillElementChange: "elementalChange",
+  WrathOfHeavenHeal: "wrathOfHeavenHeal",
+  ExplosiveBoltHalf: "explosiveBoltDecrease",
+  ChargeTrapExplosiveCooldown: "knightHelmet",
+  CrossbowTurretCooldown: "turretCooldownReduce",
+  CrossbowTurretAddAmount: "turretAmountPlusOne",
+  SlayerLowHpAttackSpeed: "steelAxe",
+  WhirlwindFireIgnite: "whirlwindIgnite",
+  AxeSpinBleedingChance: "axeSpinBleed",
+  SkillBaseAttackCountReduce: "basicAttackTriggerReduce",
+  SkillCooldownReduce: "cooldownReduced",
+  WaveMoveFastestPartyMember: "knightBoots",
+  WaveMoveSlowestPartyExcludeSelf: "waveMoveSlowest"
+};
+
+export const getUniqueModKeyById = (itemId: string | null): string | null => {
+  if (itemId && gearDetails.stats[itemId]) {
+    const s = gearDetails.stats[itemId];
+    if (s.u !== undefined && s.u !== null) {
+      const wikiKey = gearDetails.uniqueModMap[s.u];
+      if (wikiKey) {
+        return WIKI_TO_LOCAL_MOD_MAP[wikiKey] || wikiKey;
+      }
+    }
+    return "none";
+  }
+  return null;
+};
+
+export const isUnobtainableItem = (itemId: string | null): boolean => {
+  if (itemId && gearDetails.deleted) {
+    const idNum = parseInt(itemId, 10);
+    return gearDetails.deleted.includes(idNum);
+  }
+  return false;
 };
