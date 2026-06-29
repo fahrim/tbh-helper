@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { invoke } from "@tauri-apps/api/core";
-import { fetchUrlWithRetry, isUnobtainableItem, getInherentOptions, getUniqueModKeyById, getItemBaseStats, translateInherentOption, formatDecimal } from "../utils";
+import { fetchUrlWithRetry, isUnobtainableItem, getInherentOptions, getUniqueModKeyById, getItemBaseStats, translateInherentOption, formatDecimal, formatPrice } from "../utils";
+import { fetchMarketDetail, PricePoint, ActiveListing } from "../services/marketDataService";
 import { TbhItem, WishlistItem } from "../types";
 // @ts-ignore
 import materialEffectsRaw from "../constants/material_effects.json";
@@ -81,19 +82,6 @@ interface ItemDetailModalProps {
   wishlist?: WishlistItem[];
   onAddToWishlist?: (item: WishlistItem) => void;
   onRemoveFromWishlist?: (itemKey: string) => void;
-}
-
-interface PricePoint {
-  date: string;
-  fullDate?: string;
-  price: number;
-  volume: number;
-  timestamp: number;
-}
-
-interface ActiveListing {
-  price: number;
-  count: number;
 }
 
 export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({ 
@@ -200,7 +188,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     });
   };
 
-  // Fetch prices on open
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -208,121 +195,12 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
     setHistory([]);
     setListings([]);
 
-    const fetchDetailData = async () => {
+    (async () => {
       try {
-        const encodedHash = encodeURIComponent(item.marketHashName);
-        let parsedHistory: PricePoint[] = [];
-        let parsedListings: ActiveListing[] = [];
-
-        // 1. Fetch main Steam Market page HTML
-        const htmlUrl = `https://steamcommunity.com/market/listings/3678970/${encodedHash}`;
-        const html = await fetchUrlWithRetry(htmlUrl);
-        
+        const result = await fetchMarketDetail(item.marketHashName);
         if (active) {
-          // Parse historical prices from SSR query cache JSON
-          const pricesMatch = html.match(/prices\\*":\s*(\[[\s\S]*?\])/);
-          if (pricesMatch) {
-            const cleanJson = pricesMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\/g, '');
-            try {
-              const pricesList = JSON.parse(cleanJson);
-              if (Array.isArray(pricesList) && pricesList.length > 0) {
-                parsedHistory = pricesList.map((p: any) => {
-                  const d = new Date(p.time * 1000);
-                  const dateCleanShort = d.toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric"
-                  });
-                  const dateCleanFull = d.toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: false
-                  });
-                  let price = parseFloat(p.price_median) || 0;
-                  return {
-                    date: dateCleanShort,
-                    fullDate: dateCleanFull,
-                    price,
-                    volume: parseInt(p.purchases) || 0,
-                    timestamp: p.time * 1000
-                  };
-                });
-              }
-            } catch (jsonErr) {
-              console.warn("Failed to parse prices JSON:", jsonErr);
-            }
-          } else {
-            // Try legacy regex format fallback
-            const historyMatch = html.match(/line1\s*=\s*(\[[\s\S]*?\]);/);
-            if (historyMatch) {
-              try {
-                const rawPoints = JSON.parse(historyMatch[1]);
-                parsedHistory = rawPoints.map((p: any) => {
-                  const dateRaw = String(p[0]);
-                  const d = new Date(dateRaw);
-                  const timestamp = d.getTime();
-                  const isValid = !isNaN(timestamp);
-                  
-                  let dateCleanShort = dateRaw;
-                  let dateCleanFull = dateRaw;
-                  
-                  if (isValid) {
-                    dateCleanShort = d.toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric"
-                    });
-                    dateCleanFull = d.toLocaleString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false
-                    });
-                  } else {
-                    const parts = dateRaw.split(" ");
-                    dateCleanShort = parts.length >= 3 ? `${parts[0]} ${parts[1]} ${parts[2]}` : dateRaw;
-                  }
-
-                  let price = parseFloat(p[1]) || 0;
-                  return {
-                    date: dateCleanShort,
-                    fullDate: dateCleanFull,
-                    price,
-                    volume: parseInt(p[2]) || 0,
-                    timestamp: isValid ? timestamp : 0
-                  };
-                });
-              } catch (jsonErr) {
-                console.warn("Failed to parse legacy history JSON:", jsonErr);
-              }
-            }
-          }
-
-          // Parse sell orders from SSR query cache JSON
-          const sellOrdersMatch = html.match(/rgCompactSellOrders\\*":\s*(\[[\s\S]*?\])/);
-          if (sellOrdersMatch) {
-            const cleanJson = sellOrdersMatch[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\').replace(/\\/g, '');
-            try {
-              const sellOrdersList = JSON.parse(cleanJson);
-              if (Array.isArray(sellOrdersList)) {
-                for (let i = 0; i < sellOrdersList.length; i += 2) {
-                  const price = sellOrdersList[i] / 100;
-                  const count = sellOrdersList[i + 1];
-                  parsedListings.push({ price, count });
-                }
-              }
-            } catch (jsonErr) {
-              console.warn("Failed to parse sell orders JSON:", jsonErr);
-            }
-          }
-
-          setHistory(parsedHistory);
-          setListings(parsedListings);
+          setHistory(result.history);
+          setListings(result.listings);
           setLoading(false);
         }
       } catch (err: any) {
@@ -332,9 +210,7 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
           setLoading(false);
         }
       }
-    };
-
-    fetchDetailData();
+    })();
 
     return () => {
       active = false;
@@ -493,10 +369,6 @@ export const ItemDetailModal: React.FC<ItemDetailModalProps> = ({
 
   const handleMouseLeave = () => {
     setHoveredPoint(null);
-  };
-
-  const formatPrice = (val: number) => {
-    return `$${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`;
   };
 
   return (

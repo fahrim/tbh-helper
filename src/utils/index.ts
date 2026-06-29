@@ -199,6 +199,27 @@ export function matchSearchQuery(item: SearchableItem, query: string): boolean {
     return nameMatch || engMatch || gearMatch || gradeMatch;
   });
 }
+
+export function centsToDollars(cents: number): number {
+  return cents / 100;
+}
+
+export function parsePriceString(str: string): number | null {
+  if (!str) return null;
+  const cents = parseInt(str.replace(/[^0-9]/g, ""), 10);
+  if (isNaN(cents)) return null;
+  return centsToDollars(cents);
+}
+
+export function formatPrice(price: number, options?: { minFraction?: number; maxFraction?: number }): string {
+  const minFrac = options?.minFraction ?? 2;
+  const maxFrac = options?.maxFraction ?? 3;
+  return `$${price.toLocaleString(undefined, { minimumFractionDigits: minFrac, maximumFractionDigits: maxFrac })}`;
+}
+
+export function formatPriceShort(price: number): string {
+  return `$${price.toFixed(2)}`;
+}
 export const getInherentOptions = (
   gearType: string | null,
   level: number | null,
